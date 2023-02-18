@@ -47,16 +47,29 @@ func main() {
 			podLogs := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
 			logs, err := podLogs.Stream(context.Background())
 			if err != nil {
-				log.Fatalf("Error getting logs for pod %s: %v", pod.Name, err)
+				log.Printf("Error getting logs for pod %s: %v", pod.Name, err)
+				continue
 			}
 			defer logs.Close()
 			buf := new(bytes.Buffer)
 			_, err = io.Copy(buf, logs)
 			if err != nil {
-				log.Fatalf("Error reading logs for pod %s: %v", pod.Name, err)
+				log.Printf("Error reading logs for pod %s: %v", pod.Name, err)
+				continue
 			}
 			fmt.Printf("  Logs: %s\n", buf.String())
 		}
 
+	}
+
+	fmt.Println("\n\n\nEvents:")
+	events, err := clientset.CoreV1().Events("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		log.Fatalf("Error listing events: %v", err)
+	}
+
+	// Print the events.
+	for _, event := range events.Items {
+		fmt.Printf("Event: %s %s %s\n", event.Reason, event.Type, event.Message)
 	}
 }
