@@ -53,8 +53,8 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - whitespace
-    - wsl
+#    - whitespace
+#    - wsl
 
 run:
   issues-exit-code: 1
