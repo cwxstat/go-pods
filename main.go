@@ -13,6 +13,36 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+func PodLogs(clientset *kubernetes.Clientset, pod *corev1.Pod) error {
+
+	if pod.Status.Phase != corev1.PodRunning {
+		log.Printf("Pod not running")
+		return nil
+
+	}
+
+	for _, container := range pod.Spec.Containers {
+		podLogs := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+			TypeMeta:  metav1.TypeMeta{},
+			Container: container.Name,
+		})
+		logs, err := podLogs.Stream(context.Background())
+		if err != nil {
+			log.Printf("Error getting logs for pod %s: %v", pod.Name, err)
+			return err
+		}
+		defer logs.Close()
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, logs)
+		if err != nil {
+			log.Printf("Error reading logs for pod %s: %v", pod.Name, err)
+			return err
+		}
+		fmt.Printf("  Logs: %s\n", buf.String())
+	}
+	return nil
+}
+
 func main() {
 	// Load the Kubernetes configuration from the default location or a specified path.
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -41,25 +71,14 @@ func main() {
 		fmt.Printf("%s: Pod %s: status: %v,\n", pod.Namespace, pod.Name, pod.Status.Phase)
 
 		if pod.Status.Phase == corev1.PodRunning {
-			fmt.Printf("Pod %s:\n", pod.Name)
+			fmt.Printf("Pod %s: Containers: %d\n", pod.Name, len(pod.Spec.Containers))
 
 			// Get the logs for the pod's containers.
-			podLogs := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
-			logs, err := podLogs.Stream(context.Background())
+			err := PodLogs(clientset, &pod)
 			if err != nil {
 				log.Printf("Error getting logs for pod %s: %v", pod.Name, err)
-				continue
 			}
-			defer logs.Close()
-			buf := new(bytes.Buffer)
-			_, err = io.Copy(buf, logs)
-			if err != nil {
-				log.Printf("Error reading logs for pod %s: %v", pod.Name, err)
-				continue
-			}
-			fmt.Printf("  Logs: %s\n", buf.String())
 		}
-
 	}
 
 	fmt.Println("\n\n\nEvents:")
